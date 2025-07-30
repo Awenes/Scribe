@@ -5,42 +5,46 @@ import * as os from "os";
 import { exec } from "child_process";
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
+let dailySummaryTimer: NodeJS.Timeout | null = null;
+let weeklySummaryTimer: NodeJS.Timeout | null = null;
 let editHistory: Map<string, number> = new Map();
 
 export function activate(context: vscode.ExtensionContext) {
   const outputChannel = vscode.window.createOutputChannel("Scribe");
   outputChannel.appendLine("Scribe extension activated.");
 
-  // Get workspace folder path and name
-  const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  const workspaceName = workspaceFolder
-    ? path.basename(workspaceFolder)
-    : "unknown-workspace";
+  // 1. Determine global .scribe directory
+  const baseScribeDir = path.join(os.homedir(), ".scribe");
 
-  // Build global scribe directory path, then subfolder based on workspace
-  const globalScribeDir = path.join(os.homedir(), ".scribe");
-  const scribeDir = path.join(globalScribeDir, workspaceName);
+  // 2. Get workspace name and create subdirectory
+  const workspaceFolders = vscode.workspace.workspaceFolders;
+  if (!workspaceFolders || workspaceFolders.length === 0) {
+    vscode.window.showErrorMessage("No workspace is open.");
+    return;
+  }
+  const workspacePath = workspaceFolders[0].uri.fsPath;
+  const workspaceName = path.basename(workspacePath);
+  const scribeDir = path.join(baseScribeDir, workspaceName);
 
-  // Ensure .scribe/<workspaceName> folder exists
   if (!fs.existsSync(scribeDir)) {
     fs.mkdirSync(scribeDir, { recursive: true });
     exec("git init", { cwd: scribeDir }, (err) => {
       if (err) {
         outputChannel.appendLine("Failed to init git repo: " + err.message);
       } else {
-        outputChannel.appendLine(`Initialized Git repo in ${scribeDir}`);
+        outputChannel.appendLine("Initialized Git repo in .scribe");
       }
     });
   }
 
-  // Watch for text document edits and track file path + number of edits
+  // 3. Track file changes
   vscode.workspace.onDidChangeTextDocument((e) => {
     const filePath = e.document.uri.fsPath;
     const current = editHistory.get(filePath) ?? 0;
     editHistory.set(filePath, current + 1);
   });
 
-  // Track opened files to initialize them in the map
+  // 4. Track file opens
   vscode.workspace.onDidOpenTextDocument((doc) => {
     const filePath = doc.uri.fsPath;
     if (!editHistory.has(filePath)) {
@@ -48,7 +52,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  // Status bar icon
+  // 5. Show status bar
   const statusBarItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Right,
     100
@@ -58,7 +62,7 @@ export function activate(context: vscode.ExtensionContext) {
   statusBarItem.show();
   context.subscriptions.push(statusBarItem);
 
-  // Get logging interval from user settings or fallback to 1 minute
+  // 6. Interval logging setup
   const intervalMin =
     vscode.workspace
       .getConfiguration()
@@ -66,15 +70,15 @@ export function activate(context: vscode.ExtensionContext) {
   const intervalMs = intervalMin * 60 * 1000;
   outputChannel.appendLine(`Logging every ${intervalMin} minutes.`);
 
-  // Set up periodic logging
   intervalId = setInterval(() => {
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-");
-    const day = now.toISOString().slice(0, 10); // e.g., 2025-07-30
+    const day = now.toISOString().slice(0, 10);
     const filename = `log-${day}.md`;
     const filepath = path.join(scribeDir, filename);
 
-    let summary = `### ${now.toLocaleString()}\n\n`;
+    let summary = `### ${now.toLocaleString()}
+\n`;
 
     if (editHistory.size === 0) {
       summary += "- No editor activity detected.\n\n";
@@ -85,10 +89,8 @@ export function activate(context: vscode.ExtensionContext) {
       summary += "\n";
     }
 
-    // Append to Markdown log file
     fs.appendFileSync(filepath, summary);
 
-    // Commit changes to Git
     exec(
       `git add . && git commit -m "Log at ${timestamp}"`,
       { cwd: scribeDir },
@@ -101,11 +103,16 @@ export function activate(context: vscode.ExtensionContext) {
       }
     );
 
-    // Clear edit history for next interval
     editHistory.clear();
   }, intervalMs);
 
-  // Hello command still available (optional)
+  // 7. Daily summary generator (23:59)
+  scheduleDailySummary(scribeDir, outputChannel);
+
+  // 8. Weekly summary generator (Sundays at 23:59)
+  scheduleWeeklySummary(scribeDir, outputChannel);
+
+  // 9. Hello command
   const disposable = vscode.commands.registerCommand(
     "Scribe.helloWorld",
     () => {
@@ -117,7 +124,79 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-  if (intervalId) {
-    clearInterval(intervalId);
-  }
+  if (intervalId) clearInterval(intervalId);
+  if (dailySummaryTimer) clearTimeout(dailySummaryTimer);
+  if (weeklySummaryTimer) clearTimeout(weeklySummaryTimer);
+}
+
+function scheduleDailySummary(
+  scribeDir: string,
+  outputChannel: vscode.OutputChannel
+) {
+  const now = new Date();
+  const millisUntilMidnight =
+    new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + 1,
+      0,
+      0,
+      0
+    ).getTime() - now.getTime();
+
+  dailySummaryTimer = setTimeout(() => {
+    exec(
+      `git log --since=midnight --pretty=format:"- %s"`,
+      { cwd: scribeDir },
+      (err, stdout) => {
+        if (err) {
+          outputChannel.appendLine("Daily summary error: " + err.message);
+          return;
+        }
+        const day = new Date().toISOString().slice(0, 10);
+        const summaryFile = path.join(scribeDir, `daily-summary-${day}.md`);
+        const content = `# Daily Summary (${day})\n\n${stdout}\n`;
+        fs.writeFileSync(summaryFile, content);
+        outputChannel.appendLine(`Generated daily summary: ${summaryFile}`);
+      }
+    );
+    scheduleDailySummary(scribeDir, outputChannel);
+  }, millisUntilMidnight);
+}
+
+function scheduleWeeklySummary(
+  scribeDir: string,
+  outputChannel: vscode.OutputChannel
+) {
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const daysUntilSunday = (7 - dayOfWeek) % 7;
+  const nextSunday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() + daysUntilSunday,
+    23,
+    59,
+    0
+  );
+  const millisUntilSundayNight = nextSunday.getTime() - now.getTime();
+
+  weeklySummaryTimer = setTimeout(() => {
+    exec(
+      `git log --since="7 days ago" --pretty=format:"- %s"`,
+      { cwd: scribeDir },
+      (err, stdout) => {
+        if (err) {
+          outputChannel.appendLine("Weekly summary error: " + err.message);
+          return;
+        }
+        const day = new Date().toISOString().slice(0, 10);
+        const summaryFile = path.join(scribeDir, `weekly-summary-${day}.md`);
+        const content = `# Weekly Summary (Week ending ${day})\n\n${stdout}\n`;
+        fs.writeFileSync(summaryFile, content);
+        outputChannel.appendLine(`Generated weekly summary: ${summaryFile}`);
+      }
+    );
+    scheduleWeeklySummary(scribeDir, outputChannel);
+  }, millisUntilSundayNight);
 }
