@@ -54,7 +54,7 @@ export function activate(context: vscode.ExtensionContext) {
   const intervalMin =
     vscode.workspace
       .getConfiguration()
-      .get<number>("activityTracker.interval") ?? 30;
+      .get<number>("activityTracker.interval") ?? 1;
   const intervalMs = intervalMin * 60 * 1000;
   outputChannel.appendLine(`Logging every ${intervalMin} minutes.`);
 
