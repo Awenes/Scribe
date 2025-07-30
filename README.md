@@ -34,22 +34,6 @@ Scribe is a VS Code extension that helps developers track their activity, auto-l
 
 ---
 
-## ⚙️ Configuration
-
-You can customize the logging interval via your `package.json`:
-
-```json
-        "activityTracker.interval": {
-          "type": "number",
-          "default": 30,
-          "description": "Commit interval in minutes"
-        }
-```
-
-This value is in minutes. Default is `30`.
-
----
-
 ## 🚀 Getting Started
 
 1. Install the extension
