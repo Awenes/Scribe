@@ -1,6 +1,6 @@
 {
-  "name": "scribe",
-  "displayName": "Scribe",
+  "name": "scribe-dev-logger",
+  "displayName": "Scribe - Developer Activity Logger",
   "description": "VS Code activity tracker",
   "publisher": "pr3ciousCanCod3",
   "repository": {
