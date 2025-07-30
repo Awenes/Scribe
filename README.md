@@ -52,8 +52,8 @@ This value is in minutes. Default is `30`.
 
 ## 🚀 Getting Started
 
-1. Clone the repo
-2. Run the extension in the VS Code Extension Development Host
+1. Install the extension
+2. The extension runs automaically if it doesn't, reload VsCode window
 3. Start coding — Scribe will auto-log your changes!
 
 ---
