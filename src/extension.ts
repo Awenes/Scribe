@@ -11,28 +11,36 @@ export function activate(context: vscode.ExtensionContext) {
   const outputChannel = vscode.window.createOutputChannel("Scribe");
   outputChannel.appendLine("Scribe extension activated.");
 
-  const scribeDir = path.join(os.homedir(), ".scribe");
+  // Get workspace folder path and name
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const workspaceName = workspaceFolder
+    ? path.basename(workspaceFolder)
+    : "unknown-workspace";
 
-  // 1. Ensure .scribe Git repo exists
+  // Build global scribe directory path, then subfolder based on workspace
+  const globalScribeDir = path.join(os.homedir(), ".scribe");
+  const scribeDir = path.join(globalScribeDir, workspaceName);
+
+  // Ensure .scribe/<workspaceName> folder exists
   if (!fs.existsSync(scribeDir)) {
-    fs.mkdirSync(scribeDir);
+    fs.mkdirSync(scribeDir, { recursive: true });
     exec("git init", { cwd: scribeDir }, (err) => {
       if (err) {
         outputChannel.appendLine("Failed to init git repo: " + err.message);
       } else {
-        outputChannel.appendLine("Initialized Git repo in .scribe");
+        outputChannel.appendLine(`Initialized Git repo in ${scribeDir}`);
       }
     });
   }
 
-  // 2. Register file change event
+  // Watch for text document edits and track file path + number of edits
   vscode.workspace.onDidChangeTextDocument((e) => {
     const filePath = e.document.uri.fsPath;
     const current = editHistory.get(filePath) ?? 0;
     editHistory.set(filePath, current + 1);
   });
 
-  // 3. Register file open event
+  // Track opened files to initialize them in the map
   vscode.workspace.onDidOpenTextDocument((doc) => {
     const filePath = doc.uri.fsPath;
     if (!editHistory.has(filePath)) {
@@ -40,7 +48,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  // 4. Status bar item
+  // Status bar icon
   const statusBarItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Right,
     100
@@ -50,7 +58,7 @@ export function activate(context: vscode.ExtensionContext) {
   statusBarItem.show();
   context.subscriptions.push(statusBarItem);
 
-  // 5. Interval setup
+  // Get logging interval from user settings or fallback to 1 minute
   const intervalMin =
     vscode.workspace
       .getConfiguration()
@@ -58,6 +66,7 @@ export function activate(context: vscode.ExtensionContext) {
   const intervalMs = intervalMin * 60 * 1000;
   outputChannel.appendLine(`Logging every ${intervalMin} minutes.`);
 
+  // Set up periodic logging
   intervalId = setInterval(() => {
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-");
@@ -76,8 +85,10 @@ export function activate(context: vscode.ExtensionContext) {
       summary += "\n";
     }
 
+    // Append to Markdown log file
     fs.appendFileSync(filepath, summary);
 
+    // Commit changes to Git
     exec(
       `git add . && git commit -m "Log at ${timestamp}"`,
       { cwd: scribeDir },
@@ -90,10 +101,11 @@ export function activate(context: vscode.ExtensionContext) {
       }
     );
 
+    // Clear edit history for next interval
     editHistory.clear();
   }, intervalMs);
 
-  // 6. Hello command still available
+  // Hello command still available (optional)
   const disposable = vscode.commands.registerCommand(
     "Scribe.helloWorld",
     () => {
