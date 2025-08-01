@@ -1,6 +1,3 @@
-// I tried spliting the code into multiple files, but it didn't work as expected.
-// The code is still organized into functions for better readability and maintainability.
-
 import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
@@ -12,21 +9,22 @@ let intervalId: ReturnType<typeof setInterval> | null = null;
 let dailySummaryTimer: NodeJS.Timeout | null = null;
 let weeklySummaryTimer: NodeJS.Timeout | null = null;
 let editHistory: Map<string, number> = new Map();
+let scribeDir: string = ""; // Made global for access in deactivate
 
 // Extension Activation
 export function activate(context: vscode.ExtensionContext) {
   const outputChannel = vscode.window.createOutputChannel("Scribe");
   outputChannel.appendLine("Scribe extension activated.");
 
-  // Setup workspace-aware logging
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (!workspaceFolders || workspaceFolders.length === 0) {
     vscode.window.showErrorMessage("No workspace is open.");
     return;
   }
+
   const workspacePath = workspaceFolders[0].uri.fsPath;
   const workspaceName = path.basename(workspacePath);
-  const scribeDir = path.join(os.homedir(), ".scribe", workspaceName);
+  scribeDir = path.join(os.homedir(), ".scribe", workspaceName);
 
   initializeRepo(scribeDir, outputChannel);
   setupFileEventListeners();
@@ -44,6 +42,30 @@ export function deactivate() {
   if (intervalId) clearInterval(intervalId);
   if (dailySummaryTimer) clearTimeout(dailySummaryTimer);
   if (weeklySummaryTimer) clearTimeout(weeklySummaryTimer);
+
+  // 🔁 Final commit if there's unsaved activity
+  if (editHistory.size > 0) {
+    const now = new Date();
+    const timestamp = now.toISOString().replace(/[:.]/g, "-");
+    const day = now.toISOString().slice(0, 10);
+    const filename = `log-${day}.md`;
+    const filepath = path.join(scribeDir, filename);
+
+    let summary = `### Final Log: ${now.toLocaleString()}\n\n`;
+    editHistory.forEach((edits, filePath) => {
+      summary += `- Edited: ${filePath} (${edits} times)\n`;
+    });
+
+    fs.appendFileSync(filepath, summary);
+
+    exec(
+      `git add . && git commit -m "Final log at ${timestamp}"`,
+      { cwd: scribeDir },
+      () => {}
+    );
+
+    editHistory.clear();
+  }
 }
 
 // --- Initialization ---
@@ -60,8 +82,11 @@ function initializeRepo(scribeDir: string, output: vscode.OutputChannel) {
 function setupFileEventListeners() {
   vscode.workspace.onDidChangeTextDocument((e) => {
     const filePath = e.document.uri.fsPath;
-    const current = editHistory.get(filePath) ?? 0;
-    editHistory.set(filePath, current + 1);
+    // ✅ Only increment if actual text changes exist
+    if (e.contentChanges.length > 0) {
+      const current = editHistory.get(filePath) ?? 0;
+      editHistory.set(filePath, current + 1);
+    }
   });
 
   vscode.workspace.onDidOpenTextDocument((doc) => {
@@ -89,7 +114,7 @@ function setupIntervalLogging(
   const intervalMin =
     vscode.workspace
       .getConfiguration()
-      .get<number>("activityTracker.interval") ?? 1;
+      .get<number>("activityTracker.interval") ?? 30;
   const intervalMs = intervalMin * 60 * 1000;
   outputChannel.appendLine(`Logging every ${intervalMin} minutes.`);
 
@@ -142,8 +167,9 @@ function scheduleDailySummary(
     ).getTime() - now.getTime();
 
   dailySummaryTimer = setTimeout(() => {
+    // ✅ Fix: use explicit time range
     exec(
-      'git log --since=midnight --pretty=format:"- %s"',
+      `git log --since="00:00" --until="23:59" --pretty=format:"- %s"`,
       { cwd: scribeDir },
       (err, stdout) => {
         if (err) {
@@ -154,7 +180,7 @@ function scheduleDailySummary(
         const summaryFile = path.join(scribeDir, `daily-summary-${day}.md`);
         fs.writeFileSync(
           summaryFile,
-          `# Daily Summary (${day})\n\n${stdout}\n`
+          `# Daily Summary (${day})\n\n${stdout.trim() || "- No commits today."}\n`
         );
         outputChannel.appendLine(`Generated daily summary: ${summaryFile}`);
       }
@@ -193,7 +219,7 @@ function scheduleWeeklySummary(
         const summaryFile = path.join(scribeDir, `weekly-summary-${day}.md`);
         fs.writeFileSync(
           summaryFile,
-          `# Weekly Summary (Week ending ${day})\n\n${stdout}\n`
+          `# Weekly Summary (Week ending ${day})\n\n${stdout.trim() || "- No commits this week."}\n`
         );
         outputChannel.appendLine(`Generated weekly summary: ${summaryFile}`);
       }
@@ -202,7 +228,7 @@ function scheduleWeeklySummary(
   }, millisUntilSundayNight);
 }
 
-// --- Git Utilities ---
+// --- Git Utility ---
 function execPromise(
   cmd: string,
   options: any = {}
