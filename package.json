@@ -1,20 +1,31 @@
 {
   "name": "scribe-dev-logger",
-  "displayName": "Scribe - Developer Activity Logger",
-  "description": "VS Code activity tracker",
+  "displayName": "Scribe – Developer Activity Logger",
+  "description": "Automatically track coding activity and generate Git-backed summaries and snapshots in VS Code.",
+  "version": "0.0.3",
   "publisher": "pr3ciousCanCod3",
+  "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Awenes/Scribe.git",
-    "directory": "Scribe"
+    "url": "https://github.com/Awenes/Scribe.git"
   },
-  "license": "MIT",
-  "version": "0.0.2",
+  "bugs": {
+    "url": "https://github.com/Awenes/Scribe/issues"
+  },
+  "homepage": "https://github.com/Awenes/Scribe#readme",
   "engines": {
     "vscode": "^1.80.0"
   },
   "categories": [
+    "Productivity",
     "Other"
+  ],
+  "keywords": [
+    "developer logger",
+    "activity tracker",
+    "VS Code logging",
+    "git summary",
+    "snapshot restore"
   ],
   "activationEvents": [
     "*"
@@ -25,6 +36,14 @@
       {
         "command": "Scribe.helloWorld",
         "title": "Hello from Scribe"
+      },
+      {
+        "command": "Scribe.restoreSnapshot",
+        "title": "Restore Snapshot"
+      },
+      {
+        "command": "Scribe.showDiff",
+        "title": "Show Snapshot Diff"
       }
     ],
     "configuration": {
