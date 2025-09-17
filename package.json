@@ -52,7 +52,9 @@
         "activityTracker.interval": {
           "type": "number",
           "default": 30,
-          "description": "Commit interval in minutes"
+          "minimum": 1,
+          "maximum": 120,
+          "description": "How often (in minutes) Scribe writes commit logs. Daily summaries run at midnight, and weekly summaries run on Sundays at 23:59, independent of this interval."
         }
       }
     }

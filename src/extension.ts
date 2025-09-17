@@ -4,21 +4,12 @@ import * as os from "os";
 import * as path from "path";
 
 import { initializeRepo } from "./utils/git";
-import {
-  setupFileEventListeners,
-  editHistory,
-} from "./utils/editTracker";
+import { setupFileEventListeners, editHistory } from "./utils/editTracker";
 import { setupStatusBar } from "./utils/statusBar";
-import { setupIntervalLogging } from "./scheduler/logInterval";
-import {
-  scheduleDailySummary,
-  scheduleWeeklySummary,
-} from "./scheduler/summaries";
+import { startScheduler } from "./scheduler"; // ✅ use the merged scheduler
 import { registerCommands } from "./utils/commands";
 
-let intervalId: ReturnType<typeof setInterval> | null = null;
-let dailySummaryTimer: NodeJS.Timeout | null = null;
-let weeklySummaryTimer: NodeJS.Timeout | null = null;
+let schedulerId: NodeJS.Timeout | null = null;
 let scribeDir: string = "";
 
 export function activate(context: vscode.ExtensionContext) {
@@ -35,30 +26,28 @@ export function activate(context: vscode.ExtensionContext) {
   const workspaceName = path.basename(workspacePath);
   scribeDir = path.join(os.homedir(), ".scribe", workspaceName);
 
+  // 🔧 init repo + trackers + status bar
   initializeRepo(scribeDir, outputChannel);
   setupFileEventListeners();
   setupStatusBar(context);
-  setupIntervalLogging(scribeDir, outputChannel, (id) => (intervalId = id));
-  scheduleDailySummary(
-    scribeDir,
-    outputChannel,
-    (id) => (dailySummaryTimer = id)
-  );
-  scheduleWeeklySummary(
-    scribeDir,
-    outputChannel,
-    (id) => (weeklySummaryTimer = id)
-  );
-  registerCommands(context, scribeDir);
 
+  // ✅ one scheduler for logs, daily & weekly summaries
+  startScheduler(
+    scribeDir,
+    outputChannel,
+    (id: NodeJS.Timeout) => {
+      schedulerId = id;
+    }
+  );
+
+  registerCommands(context, scribeDir);
   context.subscriptions.push(outputChannel);
 }
 
 export function deactivate() {
-  if (intervalId) clearInterval(intervalId);
-  if (dailySummaryTimer) clearTimeout(dailySummaryTimer);
-  if (weeklySummaryTimer) clearTimeout(weeklySummaryTimer);
+  if (schedulerId) clearInterval(schedulerId);
 
+  // On deactivate, flush any remaining edits to a final log
   if (editHistory.size > 0 && scribeDir) {
     const fs = require("fs");
     const path = require("path");
