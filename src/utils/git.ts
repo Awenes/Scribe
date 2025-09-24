@@ -2,6 +2,22 @@ import * as fs from "fs";
 import * as path from "path";
 import { execSync } from "child_process";
 import * as vscode from "vscode";
+import { exec } from "child_process";
+
+/**
+ * Executes a shell command and returns a Promise for stdout.
+ */
+export function execPromise(
+  command: string,
+  options?: { cwd?: string }
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    exec(command, options || {}, (err, stdout, stderr) => {
+      if (err) reject(err);
+      else resolve({ stdout, stderr });
+    });
+  });
+}
 
 /**
  * Initialize a git repo in the given directory if it doesn't exist.
