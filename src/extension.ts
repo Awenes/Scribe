@@ -1,12 +1,12 @@
-// src/extension.ts
 import * as vscode from "vscode";
 import * as os from "os";
 import * as path from "path";
+import * as fs from "fs";
 
 import { initializeRepo } from "./utils/git";
 import { setupFileEventListeners, editHistory } from "./utils/editTracker";
 import { setupStatusBar } from "./utils/statusBar";
-import { startScheduler } from "./scheduler"; // ✅ use the merged scheduler
+import { startScheduler } from "./scheduler";
 import { registerCommands } from "./utils/commands";
 
 let schedulerId: NodeJS.Timeout | null = null;
@@ -14,59 +14,76 @@ let scribeDir: string = "";
 
 export function activate(context: vscode.ExtensionContext) {
   const outputChannel = vscode.window.createOutputChannel("Scribe");
-  outputChannel.appendLine("Scribe extension activated.");
-
-  const workspaceFolders = vscode.workspace.workspaceFolders;
-  if (!workspaceFolders || workspaceFolders.length === 0) {
-    vscode.window.showErrorMessage("No workspace is open.");
-    return;
-  }
-
-  const workspacePath = workspaceFolders[0].uri.fsPath;
-  const workspaceName = path.basename(workspacePath);
-  scribeDir = path.join(os.homedir(), ".scribe", workspaceName);
-
-  // 🔧 init repo + trackers + status bar
-  initializeRepo(scribeDir, outputChannel);
-  setupFileEventListeners();
-  setupStatusBar(context);
-
-  // ✅ one scheduler for logs, daily & weekly summaries
-  startScheduler(
-    scribeDir,
-    outputChannel,
-    (id: NodeJS.Timeout) => {
-      schedulerId = id;
-    }
-  );
-
-  registerCommands(context, scribeDir);
   context.subscriptions.push(outputChannel);
+  outputChannel.show(true);
+
+  outputChannel.appendLine("🔹 Activating Scribe extension...");
+
+  try {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+      vscode.window.showErrorMessage("No workspace is open.");
+      outputChannel.appendLine(
+        "❌ No workspace folder found. Activation aborted."
+      );
+      return;
+    }
+
+    const workspacePath = workspaceFolders[0].uri.fsPath;
+    const workspaceName = path.basename(workspacePath);
+    scribeDir = path.join(os.homedir(), ".scribe", workspaceName);
+
+    // Ensure .scribe directory exists
+    if (!fs.existsSync(scribeDir)) {
+      fs.mkdirSync(scribeDir, { recursive: true });
+      outputChannel.appendLine(`📁 Created Scribe directory: ${scribeDir}`);
+    }
+
+    // Initialize git repo (safe)
+    initializeRepo(scribeDir, outputChannel);
+
+    // Setup file listeners and status bar
+    setupFileEventListeners();
+    setupStatusBar(context);
+
+    // Start scheduler safely
+    startScheduler(scribeDir, outputChannel, (id) => (schedulerId = id));
+
+    // Register commands
+    registerCommands(context, scribeDir);
+
+    vscode.window.showInformationMessage("Scribe activated successfully!");
+    outputChannel.appendLine("✅ Scribe activated.");
+  } catch (err: any) {
+    vscode.window.showErrorMessage(`Error activating Scribe: ${err.message}`);
+    outputChannel.appendLine("❌ Activation error: " + err.stack);
+  }
 }
 
 export function deactivate() {
   if (schedulerId) clearInterval(schedulerId);
 
-  // On deactivate, flush any remaining edits to a final log
   if (editHistory.size > 0 && scribeDir) {
-    const fs = require("fs");
-    const path = require("path");
-    const { exec } = require("child_process");
-    const now = new Date();
-    const timestamp = now.toISOString().replace(/[:.]/g, "-");
-    const day = now.toISOString().slice(0, 10);
-    const filename = `log-${day}.md`;
-    const filepath = path.join(scribeDir, filename);
+    try {
+      const now = new Date();
+      const day = now.toISOString().slice(0, 10);
+      const timestamp = now.toISOString().replace(/[:.]/g, "-");
+      const filepath = path.join(scribeDir, `log-${day}.md`);
 
-    let summary = `### Final Log: ${now.toLocaleString()}\n\n`;
-    editHistory.forEach((edits, filePath) => {
-      summary += `- Edited: ${filePath} (${edits} times)\n`;
-    });
+      let summary = `### Final Log: ${now.toLocaleString()}\n\n`;
+      editHistory.forEach((edits, filePath) => {
+        summary += `- Edited: ${filePath} (${edits} times)\n`;
+      });
 
-    fs.appendFileSync(filepath, summary);
-    exec(`git add . && git commit -m "Final log at ${timestamp}"`, {
-      cwd: scribeDir,
-    });
-    editHistory.clear();
+      fs.appendFileSync(filepath, summary);
+      editHistory.clear();
+
+      const { execSync } = require("child_process");
+      execSync(`git add . && git commit -m "Final log at ${timestamp}"`, {
+        cwd: scribeDir,
+      });
+    } catch (err: any) {
+      console.error("Error during deactivate:", err.message);
+    }
   }
 }
