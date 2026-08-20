@@ -1,89 +1,97 @@
-# ✍️ Scribe - Developer Activity Tracker for VS Code
+# Scribe
 
-Scribe is a VS Code extension that helps developers track their activity, auto-log changes, and generate workspace-aware summaries\*\*. It operates behind the scenes to record edits, auto-commit logs to a local Git repo, and offer easy ways to restore or diff snapshots, making it an ideal companion for focused, accountable, and resilient coding sessions.
+Scribe is a local-first developer activity tracker for VS Code. It quietly records workspace activity, turns that activity into readable progress logs, and versions each snapshot in a local Git repository.
 
----
+The goal is simple: help developers recover context, understand how a session evolved, and create useful progress summaries without introducing another dashboard or sending source activity to a remote service.
 
-## 🔧 Features
+## Why Scribe exists
 
-### ✅ Core Functionality
+Development work is rarely a clean sequence of finished tasks. A session includes experiments, reversals, small fixes, and decisions that are difficult to reconstruct later. Commit history captures some of that story, but only after the developer deliberately creates a commit.
 
-- File Edit Tracking: Tracks how many times each file was edited per logging interval.
-- Auto Logging: Periodically logs a summary of edits to a markdown file.
-- Git Integration: Each log is committed to a Git repo for easy versioning.
-- Workspace-Aware Logging: Logs are scoped to each workspace in:
-  ```
-  C:\Users\<your-name>\.scribe\<workspace-folder>
-  ```
+Scribe creates a lightweight local record between those moments. It is designed to preserve context without interrupting flow.
 
----
+## What it does
 
-### 📆 Summaries
+- Tracks file-edit activity within the current workspace
+- Generates timestamped Markdown logs at configurable intervals
+- Produces daily and weekly summaries
+- Stores logs in a workspace-specific local Git repository
+- Lets developers browse previous snapshots
+- Compares the current state with an earlier snapshot
+- Restores a selected snapshot after confirmation
+- Creates an experimental branch from an earlier snapshot
 
-- Daily Summary: Auto-generated at the end of each day, summarizing all commits and changes.
-- Weekly Summary: Compiled at the end of the week with a high-level overview.
+Scribe stores workspace logs under:
 
----
-
-### 🧠 Snapshot Restore & Diff
-
-- Browse Commit History: Easily view previous snapshots.
-- Restore Snapshot: Revert to any earlier commit after confirming safety.
-- View Diff: Compare your current state with any previous snapshot.
-- Optional Branch Creation: Create a new branch from any commit for experimentation.
-
----
-
-## 🚀 Getting Started
-
-1. Install the extension
-2. The extension runs automaically if it doesn't, reload VsCode window
-3. Start coding — Scribe will auto-log your changes!
-
----
-
-## 📁 Example Log Output
-
-Inside:
-
+```text
+C:\Users\<your-name>\.scribe\<workspace-folder>
 ```
-C:\Users\yourname\.scribe\MyProject\log-2025-07-30.md
-```
+
+Your logs and snapshot history remain on your machine.
+
+## Product and engineering decisions
+
+### Local ownership
+
+Activity data can reveal a great deal about a developer and their work. Scribe keeps its records local by default and uses Git as a transparent, inspectable history rather than introducing a proprietary storage layer.
+
+### Low-interruption tracking
+
+The extension runs in the background and summarizes activity instead of asking the developer to manually maintain a journal throughout the day.
+
+### Workspace-aware histories
+
+Each workspace receives an independent log history. Activity from unrelated projects is never mixed into a single timeline.
+
+### Reversible exploration
+
+Snapshot restore, diffing, and branch creation are exposed as deliberate commands. Operations that can change the workspace require an explicit choice from the developer.
+
+## Example log
 
 ```markdown
-### 2025-07-30 16:00
+### 2026-08-20 16:00
 
 - Edited: /components/Header.tsx (3 times)
 - Edited: /pages/index.tsx (1 time)
 ```
 
----
+## Commands
 
-## ⏱️ Commands
+| Command | Purpose |
+| --- | --- |
+| `Scribe: Restore Snapshot` | Restore the workspace to a selected snapshot |
+| `Scribe: View Diff with Snapshot` | Compare current files with a previous snapshot |
+| `Scribe: Create Branch from Snapshot` | Create a branch from an earlier point in the history |
 
-| Command                               | Description                         |
-| ------------------------------------- | ----------------------------------- |
-| `Scribe: Hello World`                 | Test command                        |
-| `Scribe: Restore Snapshot`            | Restore to a previous commit        |
-| `Scribe: View Diff with Snapshot`     | Show file diffs                     |
-| `Scribe: Create Branch from Snapshot` | Create a new branch from any commit |
+## Getting started
 
----
+1. Install Scribe in VS Code.
+2. Open a project workspace.
+3. Start working. Scribe will create and update the workspace log automatically.
 
-## 🧪 Future Improvements
+If the extension does not activate after installation, reload the VS Code window.
 
-- Live dashboard for tracked activity
-- Sync with remote repo
+## Development
 
----
+```bash
+npm install
+npm run compile
+```
 
-## 🙏 Credits
+Use the VS Code extension development host to run and debug the extension locally.
 
-Created by [Precious Awe](https://github.com/Awenes)  
-Inspired by productivity, versioning, and personal developer accountability.
+## Roadmap
 
----
+- A visual activity dashboard
+- More control over logging intervals and event categories
+- Optional remote-repository synchronization
+- Richer summaries that remain explainable and developer-controlled
 
-## 📜 License
+## Related project
 
-MIT License
+The product and documentation site lives in [Awenes/scribe_website](https://github.com/Awenes/scribe_website).
+
+## License
+
+Scribe is available under the [MIT License](./LICENSE).
