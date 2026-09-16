@@ -90,7 +90,7 @@ Use the VS Code extension development host to run and debug the extension locall
 
 ## Related project
 
-The product and documentation site lives in [Awenes/scribe_website](https://github.com/Awenes/scribe_website).
+The product and documentation site lives in [scribe.pxxlspace.cv](https://scribe.pxxlspace.cv).
 
 ## License
 

@@ -2,8 +2,9 @@
   "name": "scribe-dev-logger",
   "displayName": "Scribe – Developer Activity Logger",
   "description": "Automatically track coding activity and generate Git-backed summaries and snapshots in VS Code.",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "publisher": "pr3ciousCanCod3",
+  "icon": "images/icon.png",
   "license": "MIT",
   "repository": {
     "type": "git",

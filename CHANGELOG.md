@@ -8,6 +8,10 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - Initial release
 
+## [0.0.8]
+
+- Added an extension icon
+
 ## [0.0.7]
 
 - Fixed a shell command injection vulnerability in the Restore Snapshot / Show Diff commands
