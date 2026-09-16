@@ -61,12 +61,10 @@ C:\Users\yourname\.scribe\MyProject\log-2025-07-30.md
 
 ## ⏱️ Commands
 
-| Command                               | Description                         |
-| ------------------------------------- | ----------------------------------- |
-| `Scribe: Hello World`                 | Test command                        |
-| `Scribe: Restore Snapshot`            | Restore to a previous commit        |
-| `Scribe: View Diff with Snapshot`     | Show file diffs                     |
-| `Scribe: Create Branch from Snapshot` | Create a new branch from any commit |
+| Command               | Description                                                     |
+| ---------------------- | ----------------------------------------------------------------- |
+| `Restore Snapshot`   | Browse commit history, restore to a commit, or branch from it   |
+| `Show Snapshot Diff` | Diff any two commits from the log history                       |
 
 ---
 

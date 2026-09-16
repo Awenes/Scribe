@@ -27,15 +27,11 @@
     "snapshot restore"
   ],
   "activationEvents": [
-    "*"
+    "onStartupFinished"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
-      {
-        "command": "Scribe.helloWorld",
-        "title": "Hello from Scribe"
-      },
       {
         "command": "Scribe.restoreSnapshot",
         "title": "Restore Snapshot"
@@ -54,7 +50,7 @@
           "default": 30,
           "minimum": 1,
           "maximum": 120,
-          "description": "How often (in minutes) Scribe writes commit logs. Daily summaries run at midnight, and weekly summaries run on Sundays at 23:59, independent of this interval."
+          "description": "How often (in minutes) Scribe writes commit logs. Daily and weekly summaries are generated once per calendar day/week, on the first log after the day or week rolls over."
         }
       }
     }
@@ -64,12 +60,17 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile",
-    "test": "node ./out/test/runTest.js"
+    "test": "vscode-test"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.11.30",
     "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "eslint": "^9.39.2",
     "mocha": "^11.7.1",
     "typescript": "^5.2.2"
   }

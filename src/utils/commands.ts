@@ -1,7 +1,6 @@
 // src/utils/commands.ts
 import * as vscode from "vscode";
-import { exec, execSync } from "child_process";
-import { execPromise } from "./git";
+import { runGit, isValidGitRef } from "./git";
 
 export function registerCommands(
   context: vscode.ExtensionContext,
@@ -10,15 +9,9 @@ export function registerCommands(
   context.subscriptions.push(
     vscode.commands.registerCommand("Scribe.restoreSnapshot", async () => {
       try {
-        const folder = vscode.workspace.workspaceFolders?.[0];
-        if (!folder) {
-          vscode.window.showErrorMessage("No workspace folder open.");
-          return;
-        }
-
-        const { stdout: logOutput } = await execPromise(
-          'git log --pretty=format:"%h %ad | %s" --date=short',
-          { cwd: scribeDir }
+        const { stdout: logOutput } = await runGit(
+          ["log", "--pretty=format:%h %ad | %s", "--date=short"],
+          scribeDir
         );
 
         const commits = logOutput
@@ -27,18 +20,25 @@ export function registerCommands(
           .filter(Boolean)
           .map((line) => line.trim());
 
+        if (commits.length === 0) {
+          vscode.window.showInformationMessage("No snapshots found yet.");
+          return;
+        }
+
         const selectedCommit = await vscode.window.showQuickPick(commits, {
           placeHolder: "Select a snapshot to inspect",
         });
-        if (!selectedCommit) return;
+        if (!selectedCommit) {return;}
 
         const commitHash = selectedCommit.split(" ")[0];
+        if (!isValidGitRef(commitHash)) {
+          vscode.window.showErrorMessage("Invalid commit reference.");
+          return;
+        }
 
-        const { stdout: diffOutput } = await execPromise(
-          `git show --stat ${commitHash}`,
-          {
-            cwd: scribeDir,
-          }
+        const { stdout: diffOutput } = await runGit(
+          ["show", "--stat", commitHash],
+          scribeDir
         );
 
         const preview = await vscode.window.showInformationMessage(
@@ -50,17 +50,19 @@ export function registerCommands(
         if (preview === "Create Branch From This") {
           const branchName = await vscode.window.showInputBox({
             prompt: "Enter new branch name",
+            validateInput: (value) =>
+              isValidGitRef(value)
+                ? null
+                : "Branch name may only contain letters, numbers, '.', '_', '-', '/' and must not start with '-'.",
           });
           if (branchName) {
-            await execPromise(`git branch ${branchName} ${commitHash}`, {
-              cwd: scribeDir,
-            });
+            await runGit(["branch", branchName, commitHash], scribeDir);
             vscode.window.showInformationMessage(
               `Branch '${branchName}' created from ${commitHash}`
             );
           }
         } else if (preview === "Restore This Snapshot") {
-          await execPromise(`git checkout ${commitHash}`, { cwd: scribeDir });
+          await runGit(["checkout", commitHash], scribeDir);
           vscode.window.showInformationMessage(
             `Restored snapshot at ${commitHash}`
           );
@@ -73,61 +75,51 @@ export function registerCommands(
 
   context.subscriptions.push(
     vscode.commands.registerCommand("Scribe.showDiff", async () => {
-      exec(
-        "git log --pretty=format:'%h %s' -n 5",
-        { cwd: scribeDir },
-        async (err, stdout) => {
-          if (err) {
-            vscode.window.showErrorMessage(
-              "Error loading history: " + err.message
-            );
-            return;
-          }
-          const commits = stdout.trim().split("\n");
-          if (commits.length < 2) {
-            vscode.window.showInformationMessage(
-              "Need at least two commits to show a diff."
-            );
-            return;
-          }
+      try {
+        const { stdout } = await runGit(
+          ["log", "--pretty=format:%h %s", "-n", "5"],
+          scribeDir
+        );
 
-          const selected = await vscode.window.showQuickPick(commits, {
-            canPickMany: true,
-            placeHolder: "Select two commits to diff",
-          });
-
-          if (!selected || selected.length !== 2) {
-            vscode.window.showInformationMessage(
-              "Please select exactly two commits."
-            );
-            return;
-          }
-
-          const [hash1, hash2] = selected.map((item) => item.split(" ")[0]);
-
-          exec(
-            `git diff ${hash2} ${hash1}`,
-            { cwd: scribeDir },
-            async (err, diff) => {
-              if (err) {
-                vscode.window.showErrorMessage("Diff failed: " + err.message);
-                return;
-              }
-              const doc = await vscode.workspace.openTextDocument({
-                content: diff,
-                language: "diff",
-              });
-              vscode.window.showTextDocument(doc);
-            }
+        const commits = stdout.trim().split("\n").filter(Boolean);
+        if (commits.length < 2) {
+          vscode.window.showInformationMessage(
+            "Need at least two commits to show a diff."
           );
+          return;
         }
-      );
-    })
-  );
 
-  context.subscriptions.push(
-    vscode.commands.registerCommand("Scribe.helloWorld", () => {
-      vscode.window.showInformationMessage("Hello from Scribe!");
+        const selected = await vscode.window.showQuickPick(commits, {
+          canPickMany: true,
+          placeHolder: "Select two commits to diff",
+        });
+
+        if (!selected || selected.length !== 2) {
+          vscode.window.showInformationMessage(
+            "Please select exactly two commits."
+          );
+          return;
+        }
+
+        const [hash1, hash2] = selected.map((item) => item.split(" ")[0]);
+        if (!isValidGitRef(hash1) || !isValidGitRef(hash2)) {
+          vscode.window.showErrorMessage("Invalid commit reference.");
+          return;
+        }
+
+        const { stdout: diff } = await runGit(
+          ["diff", hash2, hash1],
+          scribeDir
+        );
+
+        const doc = await vscode.workspace.openTextDocument({
+          content: diff,
+          language: "diff",
+        });
+        vscode.window.showTextDocument(doc);
+      } catch (err: any) {
+        vscode.window.showErrorMessage(`Error: ${err.message}`);
+      }
     })
   );
 }

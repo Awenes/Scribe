@@ -2,9 +2,14 @@ import * as vscode from "vscode";
 import * as os from "os";
 import * as path from "path";
 import * as fs from "fs";
+import { execFileSync } from "child_process";
 
 import { initializeRepo } from "./utils/git";
-import { setupFileEventListeners, editHistory } from "./utils/editTracker";
+import {
+  setupFileEventListeners,
+  editHistory,
+  buildEditSummary,
+} from "./utils/editTracker";
 import { setupStatusBar } from "./utils/statusBar";
 import { startScheduler } from "./scheduler";
 import { registerCommands } from "./utils/commands";
@@ -43,7 +48,7 @@ export function activate(context: vscode.ExtensionContext) {
     initializeRepo(scribeDir, outputChannel);
 
     // Setup file listeners and status bar
-    setupFileEventListeners();
+    context.subscriptions.push(...setupFileEventListeners());
     setupStatusBar(context);
 
     // Start scheduler safely
@@ -61,7 +66,7 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-  if (schedulerId) clearInterval(schedulerId);
+  if (schedulerId) {clearInterval(schedulerId);}
 
   if (editHistory.size > 0 && scribeDir) {
     try {
@@ -70,18 +75,21 @@ export function deactivate() {
       const timestamp = now.toISOString().replace(/[:.]/g, "-");
       const filepath = path.join(scribeDir, `log-${day}.md`);
 
-      let summary = `### Final Log: ${now.toLocaleString()}\n\n`;
-      editHistory.forEach((edits, filePath) => {
-        summary += `- Edited: ${filePath} (${edits} times)\n`;
-      });
-
+      const summary = `### Final Log: ${now.toLocaleString()}\n\n${buildEditSummary()}`;
       fs.appendFileSync(filepath, summary);
       editHistory.clear();
 
-      const { execSync } = require("child_process");
-      execSync(`git add . && git commit -m "Final log at ${timestamp}"`, {
-        cwd: scribeDir,
-      });
+      execFileSync("git", ["add", "."], { cwd: scribeDir, encoding: "utf8" });
+      try {
+        execFileSync(
+          "git",
+          ["commit", "-m", `Final log at ${timestamp}`],
+          { cwd: scribeDir, encoding: "utf8" }
+        );
+      } catch (commitErr: any) {
+        const text = `${commitErr.stdout ?? ""}${commitErr.stderr ?? ""}`;
+        if (!/nothing to commit/i.test(text)) {throw commitErr;}
+      }
     } catch (err: any) {
       console.error("Error during deactivate:", err.message);
     }
