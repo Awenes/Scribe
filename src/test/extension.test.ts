@@ -1,5 +1,8 @@
 import * as assert from 'assert';
-import { suite, test } from 'mocha';
+// `suite`/`test` are ambient globals from @types/mocha, provided at runtime
+// by the mocha instance that @vscode/test-cli loads the test file into.
+// Importing them from 'mocha' pulls in a second, uninitialized Mocha module
+// instance and breaks at runtime.
 
 // You can import and use all API from the 'vscode' module
 // as well as import your extension to test it
