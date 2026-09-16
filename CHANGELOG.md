@@ -7,3 +7,13 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 ## [Unreleased]
 
 - Initial release
+
+## [0.0.7]
+
+- Fixed a shell command injection vulnerability in the Restore Snapshot / Show Diff commands
+- Fixed daily/weekly summaries not generating reliably
+- Fixed an event listener leak on deactivation
+- Logs now record workspace-relative paths instead of absolute paths
+- Changed extension activation to `onStartupFinished`
+- Removed the unused "Hello from Scribe" command
+- Fixed broken test/lint tooling and added CI
